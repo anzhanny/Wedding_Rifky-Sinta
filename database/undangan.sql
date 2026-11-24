@@ -96,3 +96,35 @@ CREATE TABLE IF NOT EXISTS wish_rate_limits (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+-- ------------------------------------------------------------
+-- Daftar tamu & link undangan personal (admin/guests.php)
+-- Link: {domain}/rifky-sinta/{slug}  (link lama: {domain}/i/{short_code})
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS invitation_guests (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    guest_name VARCHAR(150) NOT NULL,
+    slug VARCHAR(100) NULL DEFAULT NULL,
+    token CHAR(64) NOT NULL,
+    short_code VARCHAR(12) NULL DEFAULT NULL,
+    invitation_sent TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY slug (slug),
+    UNIQUE KEY token (token),
+    UNIQUE KEY short_code (short_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- Pengaturan (template pesan WhatsApp, satu baris dengan id = 1)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS invitation_settings (
+    id TINYINT UNSIGNED NOT NULL,
+    whatsapp_template TEXT NOT NULL,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;

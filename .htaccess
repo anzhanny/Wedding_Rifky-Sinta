@@ -1,0 +1,10 @@
+RewriteEngine On
+
+# Link undangan per tamu:  /rifky-sinta/nama-tamu  ->  index.php?tamu=nama-tamu
+# Tanpa nama tamu:         /rifky-sinta            ->  index.php
+# Tanpa RewriteBase: jalan di folder mana pun (Laragon maupun hosting).
+RewriteRule ^rifky-sinta/?$ index.php [L,QSA]
+RewriteRule ^rifky-sinta/([A-Za-z0-9-]{1,100})/?$ index.php?tamu=$1 [L,QSA]
+
+# Link lama (kode pendek):  /i/KODE  ->  index.php?short=KODE
+RewriteRule ^i/([A-Za-z0-9]{6,12})/?$ index.php?short=$1 [L,QSA]

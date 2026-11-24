@@ -1,7 +1,221 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/guest_helpers.php';
+
+// Alamat dasar folder proyek (otomatis, jalan di Laragon maupun hosting).
+// Dipakai pada <base> agar CSS, JS, gambar, dan API tetap terbaca
+// ketika undangan dibuka lewat link pendek /i/KODE.
+$basePath = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+$basePath = rtrim($basePath, '/') . '/';
+
+// Default jika pengunjung membuka halaman tanpa token
+$guestName = 'Tamu Undangan';
+$guestError = false;
+$isPersonalGuest = false;
+
+$shortCode = trim((string)($_GET['short'] ?? ''));
+$guestToken = trim((string)($_GET['guest'] ?? ''));
+$guestSlug = trim((string)($_GET['tamu'] ?? ''));
+
+try {
+
+    if ($shortCode !== '') {
+
+        if (!preg_match('/\A[A-Za-z0-9]{6,12}\z/', $shortCode)) {
+            $guestError = true;
+        } else {
+
+            $stmt = $pdo->prepare(
+                "SELECT guest_name
+                 FROM invitation_guests
+                 WHERE short_code = :code
+                 LIMIT 1"
+            );
+
+            $stmt->execute([
+                ':code' => $shortCode
+            ]);
+
+            $guest = $stmt->fetch();
+
+            if ($guest) {
+                $guestName = $guest['guest_name'];
+                $isPersonalGuest = true;
+            } else {
+                $guestError = true;
+            }
+        }
+
+    } elseif ($guestToken !== '') {
+
+        if (!preg_match('/\A[a-f0-9]{64}\z/i', $guestToken)) {
+            $guestError = true;
+        } else {
+
+            $stmt = $pdo->prepare(
+                "SELECT guest_name
+                 FROM invitation_guests
+                 WHERE token = :token
+                 LIMIT 1"
+            );
+
+            $stmt->execute([
+                ':token' => $guestToken
+            ]);
+
+            $guest = $stmt->fetch();
+
+            if ($guest) {
+                $guestName = $guest['guest_name'];
+                $isPersonalGuest = true;
+            } else {
+                $guestError = true;
+            }
+        }
+
+    } elseif ($guestSlug !== '') {
+
+        // Link /rifky-sinta/nama-tamu
+        if (!preg_match('/\A[A-Za-z0-9-]{1,100}\z/', $guestSlug)) {
+            $guestError = true;
+        } else {
+            // Nama cadangan dari link, dipakai bila nama tidak ada di database.
+            $guestName = guest_name_from_slug($guestSlug);
+            $isPersonalGuest = true;
+
+            try {
+                $stmt = $pdo->prepare(
+                    "SELECT guest_name
+                     FROM invitation_guests
+                     WHERE slug = :slug
+                     LIMIT 1"
+                );
+
+                $stmt->execute([':slug' => strtolower($guestSlug)]);
+                $guest = $stmt->fetch();
+
+                if ($guest) {
+                    $guestName = $guest['guest_name'];
+                }
+            } catch (PDOException $e) {
+                // Kolom slug belum ada: tetap tampilkan nama dari link.
+                error_log('Guest slug lookup: ' . $e->getMessage());
+            }
+        }
+    }
+
+} catch (PDOException $e) {
+
+    error_log('Guest validation error: ' . $e->getMessage());
+
+    http_response_code(500);
+    exit('Terjadi kesalahan saat memuat undangan.');
+}
+
+$guestName = htmlspecialchars(
+    $guestName,
+    ENT_QUOTES,
+    'UTF-8'
+);
+
+// Hentikan akses jika token tidak valid
+if ($guestError) {
+    http_response_code(404);
+    ?>
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Undangan Tidak Ditemukan</title>
+
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                background: #f8f5f0;
+                font-family: Georgia, serif;
+                color: #4b4038;
+                text-align: center;
+            }
+
+            .error-container {
+                width: 100%;
+                max-width: 440px;
+                padding: 45px 30px;
+                background: #fff;
+                border-radius: 16px;
+                box-shadow: 0 10px 35px rgba(0,0,0,0.07);
+            }
+
+            .error-icon {
+                font-size: 55px;
+                margin-bottom: 20px;
+            }
+
+            h1 {
+                font-size: 25px;
+                margin-bottom: 15px;
+                font-weight: normal;
+            }
+
+            p {
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                line-height: 1.8;
+                color: #777;
+                margin-bottom: 25px;
+            }
+
+            .contact-text {
+                font-size: 12px;
+                color: #999;
+                margin-bottom: 0;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="error-container">
+            <div class="error-icon">✉️</div>
+
+            <h1>Undangan Tidak Ditemukan</h1>
+
+            <p>
+                Maaf, tautan undangan yang Anda buka tidak valid
+                atau sudah tidak tersedia.
+            </p>
+
+            <p class="contact-text">
+                Silakan hubungi pihak pengundang untuk mendapatkan
+                tautan undangan yang benar.
+            </p>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+?>
 <!doctype html>
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Base URL agar aset tetap terbaca melalui URL pendek -->
+    <base href="<?= htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8') ?>" />
+
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
@@ -42,7 +256,7 @@
         webkit-playsinline
         preload="auto"
         disablepictureinpicture
-        poster="assets/images/pic_1.JPEG"
+        poster="assets/images/pic_1.jpeg"
       >
         <source src="assets/videos/hero1.mp4" type="video/mp4" />
         Browser Anda tidak mendukung pemutaran video HTML5.
@@ -76,11 +290,12 @@
             Kepada Yth. Bapak/Ibu/Saudara/i:
           </p>
           <h3
-            id="guest-name"
-            class="font-serif-elegant text-2xl font-semibold text-white"
-          >
-            Tamu Undangan
-          </h3>
+  id="guest-name"
+  class="font-serif-elegant text-2xl font-semibold text-white"
+  <?php if ($isPersonalGuest): ?>data-guest-name="<?= $guestName ?>"<?php endif; ?>
+>
+  <?= $guestName ?>
+</h3>
         </div>
 
         <button
@@ -101,12 +316,12 @@
       <section class="elegant-card overflow-hidden scroll-animate fade-up">
         <div class="relative h-[min(460px,72svh)] sm:h-[540px] w-full">
           <img
-            src="assets/images/pic_1.JPEG"
+            src="assets/images/pic_1.jpeg"
             alt="Rifky Muhamad Fauzi & Sinta Apriyani"
             class="w-full h-full object-cover object-top"
             onerror="
               this.src =
-                'https://placehold.co/800x1000/1E3F32/FFFFFF?text=Foto+1+(pic_1.JPEG)'
+                'https://placehold.co/800x1000/1E3F32/FFFFFF?text=Foto+1+(pic_1.jpeg)'
             "
           />
           <div
@@ -119,11 +334,7 @@
             <p class="text-xs tracking-[0.28em] uppercase text-[#C5A878] mb-2">
             <b>Walimatul 'Ursy</b>
             </p>
-            <h2
-              class="font-serif-elegant text-4xl sm:text-5xl font-semibold mb-3"
-            >
-              Rifky &amp; Sinta
-            <p
+            Rifky &amp; Sinta
               class="text-xs sm:text-sm text-[#E2ECE7] italic max-w-md mx-auto leading-relaxed"
             >
               "Dan di antara tanda-tanda kekuasaan-Nya ialah Dia menciptakan
@@ -159,12 +370,12 @@
           <div class="scroll-animate fade-left">
             <div class="arch-frame w-48 h-64 mx-auto mb-4">
               <img
-                src="assets/images/pic_2.JPEG"
+                src="assets/images/pic_2.jpeg"
                 alt="Rifky Muhamad Fauzi"
                 class="w-full h-full object-cover object-top"
                 onerror="
                   this.src =
-                    'https://placehold.co/400x550/2D5A48/FFFFFF?text=Foto+2+(pic_2.JPEG)'
+                    'https://placehold.co/400x550/2D5A48/FFFFFF?text=Foto+2+(pic_2.jpeg)'
                 "
               />
             </div>
@@ -188,12 +399,12 @@
           <div class="scroll-animate fade-right">
             <div class="arch-frame w-48 h-64 mx-auto mb-4">
               <img
-                src="assets/images/pic_3.JPEG"
+                src="assets/images/pic_3.jpeg"
                 alt="Sinta Apriyani"
                 class="w-full h-full object-cover object-top"
                 onerror="
                   this.src =
-                    'https://placehold.co/400x550/2D5A48/FFFFFF?text=Foto+7+(pic_3.JPEG)'
+                    'https://placehold.co/400x550/2D5A48/FFFFFF?text=Foto+7+(pic_3.jpeg)'
                 "
               />
             </div>
@@ -234,14 +445,14 @@
           class="photo-frame h-64 sm:h-80 w-full mb-6 scroll-animate zoom-in"
         >
           <img
-            src="assets/images/pic_4.JPEG"
+            src="assets/images/pic_4.jpeg"
             loading="lazy"
             decoding="async"
             alt="Prewedding Rifky Muhamad Fauzi & Sinta Apriyani"
             class="object-cover object-top"
             onerror="
               this.src =
-                'https://placehold.co/800x500/1E3F32/FFFFFF?text=Foto+3+(pic_4.JPEG)'
+                'https://placehold.co/800x500/1E3F32/FFFFFF?text=Foto+3+(pic_4.jpeg)'
             "
           />
         </div>
@@ -384,93 +595,93 @@
         
           <div
             class="photo-frame h-56 sm:h-64 col-span-2 sm:col-span-1 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_6.JPEG')"
+            onclick="openLightbox('assets/images/pic_6.jpeg')"
           >
             <img
-              src="assets/images/pic_6.JPEG"
+              src="assets/images/pic_6.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 8"
               onerror="
                 this.src =
-                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_6.JPEG'
+                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_6.jpeg'
               "
             />
           </div>
           <div
             class="photo-frame h-56 sm:h-64 col-span-2 sm:col-span-1 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_11.JPEG')"
+            onclick="openLightbox('assets/images/pic_11.jpeg')"
           >
             <img
-              src="assets/images/pic_11.JPEG"
+              src="assets/images/pic_11.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 8"
               onerror="
                 this.src =
-                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_11.JPEG'
+                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_11.jpeg'
               "
             />
           </div>
 
           <div
             class="photo-frame h-56 sm:h-64 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_7.JPEG')"
+            onclick="openLightbox('assets/images/pic_7.jpeg')"
           >
             <img
-              src="assets/images/pic_7.JPEG"
+              src="assets/images/pic_7.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 1"
               onerror="
                 this.src =
-                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_7.JPEG'
+                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_7.jpeg'
               "
             />
           </div>
           <div
             class="photo-frame h-56 sm:h-64 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_8.JPEG')"
+            onclick="openLightbox('assets/images/pic_8.jpeg')"
           >
             <img
-              src="assets/images/pic_8.JPEG"
+              src="assets/images/pic_8.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 2"
               onerror="
                 this.src =
-                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_8.JPEG'
+                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_8.jpeg'
               "
             />
           </div>
            <div
             class="photo-frame h-56 sm:h-64 sm:col-span-2 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_10.JPEG')"
+            onclick="openLightbox('assets/images/pic_10.jpeg')"
           >
             <img
-              src="assets/images/pic_10.JPEG"
+              src="assets/images/pic_10.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 4"
               class="object-center"
               onerror="
                 this.src =
-                  'https://placehold.co/800x550/1E3F32/FFFFFF?text=pic_10.JPEG'
+                  'https://placehold.co/800x550/1E3F32/FFFFFF?text=pic_10.jpeg'
               "
             />
           </div>
           <div
             class="photo-frame h-56 sm:h-64 scroll-animate zoom-in"
-            onclick="openLightbox('assets/images/pic_5.JPEG')"
+            onclick="openLightbox('assets/images/pic_5.jpeg')"
           >
             <img
-              src="assets/images/pic_5.JPEG"
+              src="assets/images/pic_5.jpeg"
               loading="lazy"
               decoding="async"
               alt="Momen 3"
               onerror="
                 this.src =
-                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_5.JPEG'
+                  'https://placehold.co/400x550/1E3F32/FFFFFF?text=pic_5.jpeg'
               "
             />
           </div>
@@ -741,14 +952,14 @@
       >
         <div class="relative h-64 sm:h-72 w-full">
           <img
-            src="assets/images/pic_11.JPEG"
+            src="assets/images/pic_11.jpeg"
             loading="lazy"
             decoding="async"
             alt="Terima Kasih"
             class="w-full h-full object-cover object-top"
             onerror="
               this.src =
-                'https://placehold.co/800x450/1E3F32/FFFFFF?text=Foto+8+(pic_11.JPEG)'
+                'https://placehold.co/800x450/1E3F32/FFFFFF?text=Foto+8+(pic_11.jpeg)'
             "
           />
           <div

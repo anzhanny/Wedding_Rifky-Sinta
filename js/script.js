@@ -5,7 +5,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================
 
     const urlParams = new URLSearchParams(window.location.search);
-    const guestParam = urlParams.get("to");
+    // Nama tamu: dari ?to=... atau dari link pendek /i/KODE (data-guest-name dari index.php)
+    const guestParam =
+        urlParams.get("to") ||
+        document.getElementById("guest-name")?.dataset.guestName ||
+        "";
 
     const guestName = document.getElementById("guest-name");
     const rsvpName = document.getElementById("rsvp-name");
