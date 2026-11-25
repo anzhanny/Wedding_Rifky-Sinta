@@ -1,0 +1,4 @@
+/* Sumber untuk membangun css/tailwind.css (lihat tailwind.config.js). Jangan dimuat di halaman. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

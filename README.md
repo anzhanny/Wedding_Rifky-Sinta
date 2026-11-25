@@ -40,3 +40,19 @@ Undangan web (HTML + JS) dengan backend PHP + MySQL untuk **Konfirmasi Kehadiran
 - Import `database/undangan.sql` lewat phpMyAdmin hosting, lalu ubah kredensial di `config/database.php`.
 - Pastikan server memakai Apache (agar `.htaccess` memblokir `config/` dan `database/`); untuk Nginx, tambahkan aturan `deny all` untuk folder tersebut.
 - Gunakan HTTPS dan hapus `admin/create-admin.php` setelah dipakai.
+
+## Mengubah tampilan (Tailwind CSS lokal)
+
+Halaman undangan memakai file CSS lokal `css/tailwind.css` (bukan CDN), jadi tetap tampil benar
+walau internet tamu lambat. File ini **dibangun** dari class Tailwind yang dipakai di `index.php`
+dan `js/script.js`.
+
+Jika Anda menambah/mengubah class Tailwind di kedua berkas itu, bangun ulang:
+
+```
+npm install        # sekali saja (butuh Node.js)
+npm run build:css  # menghasilkan css/tailwind.css
+```
+
+`package.json`, `tailwind.config.js`, dan `css/tailwind-input.css` hanya untuk membangun CSS;
+tidak perlu diunggah ke hosting.

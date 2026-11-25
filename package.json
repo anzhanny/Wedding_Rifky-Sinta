@@ -1,0 +1,12 @@
+{
+  "name": "undangan-digital",
+  "private": true,
+  "description": "Hanya untuk membangun css/tailwind.css. Tidak perlu diunggah ke hosting.",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i css/tailwind-input.css -o css/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i css/tailwind-input.css -o css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.19"
+  }
+}

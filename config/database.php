@@ -8,6 +8,15 @@ $dbname = 'undangan_jerry_anzhanny';
 $username = 'root';
 $password = ''; // Sesuaikan dengan MySQL Anda.
 
+// Pengaturan khusus server (hosting/staging). Berkas ini TIDAK ikut ke GitHub
+// (lihat .gitignore), sehingga password asli tidak bocor dan tidak tertimpa
+// saat berkas proyek diunggah ulang. Contoh isi: config/database.local.example.php
+$localConfig = __DIR__ . '/database.local.php';
+
+if (is_file($localConfig)) {
+    require $localConfig; // mengisi ulang $host, $dbname, $username, $password
+}
+
 $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
 $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

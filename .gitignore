@@ -1,2 +1,6 @@
 # Jangan unggah file ini ke GitHub jika berisi kredensial asli
 *.log
+
+# Pengaturan database khusus server (berisi password asli)
+config/database.local.php
+node_modules/

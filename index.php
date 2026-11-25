@@ -236,7 +236,8 @@ if ($guestError) {
     <title>The Wedding of Rifky &amp; Sinta</title>
 
     <!-- Tailwind CSS untuk tata letak responsif -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS (file lokal, dibangun dari tailwind.config.js: npm run build:css) -->
+    <link rel="stylesheet" href="css/tailwind.css" />
 
     <!-- Google Fonts: Cormorant Garamond & Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -339,7 +340,12 @@ if ($guestError) {
             <p class="text-xs tracking-[0.28em] uppercase text-[#C5A878] mb-2">
             <b>Walimatul 'Ursy</b>
             </p>
-            Rifky &amp; Sinta
+            <h2
+              class="font-serif-elegant text-4xl sm:text-5xl font-semibold mb-3"
+            >
+              Rifky &amp; Sinta
+            </h2>
+            <p
               class="text-xs sm:text-sm text-[#E2ECE7] italic max-w-md mx-auto leading-relaxed"
             >
               "Dan di antara tanda-tanda kekuasaan-Nya ialah Dia menciptakan
@@ -979,6 +985,14 @@ if ($guestError) {
           </div>
         </div>
       </footer>
+
+      <!-- KREDIT PEMBUAT -->
+      <div class="text-center scroll-animate fade-up">
+        <p class="text-xs text-[#556860]">
+          Created by
+          <span class="font-semibold text-[#1E3F32]">Bleuzey.Project</span>
+        </p>
+      </div>
     </main>
 
     <!-- LIGHTBOX MODAL -->
