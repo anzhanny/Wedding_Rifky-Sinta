@@ -7,6 +7,13 @@ require_admin();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/guest_helpers.php';
 require_once __DIR__ . '/../config/guest_import.php';
+require_once __DIR__ . '/layout.php';
+
+$adminCtx = admin_context($pdo);
+
+// Undangan yang sedang dikelola. SEMUA data di halaman ini dibatasi ke undangan ini.
+$invitation = $adminCtx['invitation'];
+$invitationId = (int)$invitation['id'];
 
 // Pastikan kolom slug (nama di link) ada, termasuk di database lama.
 try {
@@ -129,6 +136,19 @@ if (!empty($guestsWithoutCode)) {
 }
 
 /**
+ * Apakah tamu ini milik undangan yang sedang dikelola?
+ */
+function guest_belongs_to(PDO $pdo, int $guestId, int $invitationId): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM invitation_guests WHERE id = :id AND invitation_id = :inv LIMIT 1'
+    );
+    $stmt->execute([':id' => $guestId, ':inv' => $invitationId]);
+
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
  * Menambahkan banyak tamu sekaligus (dipakai input teks dan unggah Excel).
  * Nama yang sudah ada di database (tanpa membedakan huruf besar/kecil) dilewati,
  * supaya CPP dan CPW tidak membuat link ganda untuk tamu yang sama.
@@ -136,17 +156,22 @@ if (!empty($guestsWithoutCode)) {
  * @param string[] $names
  * @return array{0:int,1:string[]} [jumlah ditambahkan, daftar nama yang dilewati]
  */
-function add_guests(PDO $pdo, array $names): array
+function add_guests(PDO $pdo, array $names, int $invitationId): array
 {
     $existing = [];
 
-    foreach ($pdo->query('SELECT guest_name FROM invitation_guests') as $row) {
+    $existingStmt = $pdo->prepare(
+        'SELECT guest_name FROM invitation_guests WHERE invitation_id = :inv'
+    );
+    $existingStmt->execute([':inv' => $invitationId]);
+
+    foreach ($existingStmt as $row) {
         $existing[mb_strtolower((string)$row['guest_name'], 'UTF-8')] = true;
     }
 
     $stmt = $pdo->prepare(
-        "INSERT INTO invitation_guests (guest_name, slug, token, short_code)
-         VALUES (:guest_name, :slug, :token, :short_code)"
+        "INSERT INTO invitation_guests (invitation_id, guest_name, slug, token, short_code)
+         VALUES (:invitation_id, :guest_name, :slug, :token, :short_code)"
     );
 
     $added = 0;
@@ -170,8 +195,9 @@ function add_guests(PDO $pdo, array $names): array
             }
 
             $stmt->execute([
+                ':invitation_id' => $invitationId,
                 ':guest_name' => $name,
-                ':slug' => guest_unique_slug($pdo, $name),
+                ':slug' => guest_unique_slug($pdo, $name, $invitationId),
                 ':token' => bin2hex(random_bytes(32)),
                 ':short_code' => create_guest_short_code($pdo),
             ]);
@@ -234,7 +260,7 @@ if (($_GET['template'] ?? '') === '1') {
 // SLUG (NAMA DI LINK) UNTUK TAMU YANG BELUM PUNYA
 // --------------------------------------------------
 $stmt = $pdo->query(
-    "SELECT id, guest_name
+    "SELECT id, guest_name, invitation_id
      FROM invitation_guests
      WHERE slug IS NULL OR slug = ''
      ORDER BY id ASC"
@@ -253,7 +279,7 @@ if (!empty($guestsWithoutSlug)) {
 
     foreach ($guestsWithoutSlug as $row) {
         $slugStmt->execute([
-            ':slug' => guest_unique_slug($pdo, (string)$row['guest_name']),
+            ':slug' => guest_unique_slug($pdo, (string)$row['guest_name'], (int)$row['invitation_id']),
             ':id' => $row['id']
         ]);
     }
@@ -288,13 +314,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
+            if (!guest_belongs_to($pdo, $id, $invitationId)) {
+                http_response_code(404);
+                echo json_encode(['success' => false]);
+                exit;
+            }
+
             $stmt = $pdo->prepare(
                 "UPDATE invitation_guests
                  SET invitation_sent = :sent
-                 WHERE id = :id"
+                 WHERE id = :id AND invitation_id = :inv"
             );
 
-            $stmt->execute([':sent' => $sent, ':id' => $id]);
+            $stmt->execute([':sent' => $sent, ':id' => $id, ':inv' => $invitationId]);
 
             echo json_encode(['success' => true, 'sent' => $sent]);
         } catch (Throwable $e) {
@@ -344,15 +376,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
 
-            // Simpan ke tabel pengaturan (satu baris, id = 1).
+            // Simpan ke tabel pengaturan (satu baris per undangan, id = id undangan).
             $stmt = $pdo->prepare(
                 "INSERT INTO invitation_settings (id, whatsapp_template)
-                 VALUES (1, :template)
+                 VALUES (:inv, :template)
                  ON DUPLICATE KEY UPDATE
                     whatsapp_template = VALUES(whatsapp_template)"
             );
 
             $stmt->execute([
+                ':inv' => $invitationId,
                 ':template' => $template
             ]);
 
@@ -398,7 +431,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            [$added, $skipped] = add_guests($pdo, $names);
+            [$added, $skipped] = add_guests($pdo, $names, $invitationId);
 
             $_SESSION['guests_flash_success'] =
                 add_guests_message($added, $skipped);
@@ -469,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect_guests();
             }
 
-            [$added, $skipped] = add_guests($pdo, $names);
+            [$added, $skipped] = add_guests($pdo, $names, $invitationId);
 
             $_SESSION['guests_flash_success'] =
                 'Dari file Excel: ' . add_guests_message($added, $skipped);
@@ -504,15 +537,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
+            if (!guest_belongs_to($pdo, $id, $invitationId)) {
+                $_SESSION['guests_flash_error'] = 'Tamu tidak ditemukan.';
+                redirect_guests();
+            }
+
             $stmt = $pdo->prepare(
                 "UPDATE invitation_guests
                  SET guest_name = :guest_name
-                 WHERE id = :id"
+                 WHERE id = :id AND invitation_id = :inv"
             );
 
             $stmt->execute([
                 ':guest_name' => mb_substr($name, 0, 150),
-                ':id' => $id
+                ':id' => $id,
+                ':inv' => $invitationId
             ]);
 
             $_SESSION['guests_flash_success'] =
@@ -544,10 +583,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             $stmt = $pdo->prepare(
-                "DELETE FROM invitation_guests WHERE id = :id"
+                "DELETE FROM invitation_guests
+                 WHERE id = :id AND invitation_id = :inv"
             );
 
-            $stmt->execute([':id' => $id]);
+            $stmt->execute([':id' => $id, ':inv' => $invitationId]);
+
+            if ($stmt->rowCount() === 0) {
+                $_SESSION['guests_flash_error'] = 'Tamu tidak ditemukan.';
+                redirect_guests();
+            }
 
             $_SESSION['guests_flash_success'] =
                 'Data tamu berhasil dihapus.';
@@ -577,7 +622,7 @@ $defaultWhatsappTemplate =
     "Dengan memohon rahmat dan ridho Allah SWT, kami bermaksud " .
     "mengundang Bapak/Ibu/Saudara/i untuk menghadiri acara " .
     "pernikahan kami:\n" .
-    "*Rifky & Sinta*\n\n" .
+    "*" . $invitation['couple_name'] . "*\n\n" .
     "Detail acara dan lokasi dapat dilihat pada tautan " .
     "undangan berikut:\n" .
     "{link_undangan}\n\n" .
@@ -587,14 +632,15 @@ $defaultWhatsappTemplate =
     "Atas perhatian dan kehadirannya, kami ucapkan terima kasih.\n" .
     "Wassalamu'alaikum Warahmatullahi Wabarakatuh.\n\n" .
     "Hormat kami,\n" .
-    "*Rifky & Sinta*";
+    "*" . $invitation['couple_name'] . "*";
 
-$stmt = $pdo->query(
+$stmt = $pdo->prepare(
     "SELECT whatsapp_template
      FROM invitation_settings
-     WHERE id = 1
+     WHERE id = :inv
      LIMIT 1"
 );
+$stmt->execute([':inv' => $invitationId]);
 
 $savedTemplate = $stmt->fetchColumn();
 
@@ -619,7 +665,7 @@ unset(
 // --------------------------------------------------
 // FETCH GUEST DATA
 // --------------------------------------------------
-$stmt = $pdo->query(
+$stmt = $pdo->prepare(
     "SELECT
         id,
         guest_name,
@@ -629,8 +675,10 @@ $stmt = $pdo->query(
         invitation_sent,
         created_at
      FROM invitation_guests
+     WHERE invitation_id = :inv
      ORDER BY id DESC"
 );
+$stmt->execute([':inv' => $invitationId]);
 
 $guests = $stmt->fetchAll();
 
@@ -657,12 +705,12 @@ $totalSent = count(array_filter(
 body {
     margin: 0;
     font-family: Arial, sans-serif;
-    background: #f4f7f5;
-    color: #26352d;
+    background: #f3f6fb;
+    color: #1f2d3d;
 }
 
 header {
-    background: #183d32;
+    background: #1f4e96;
     color: white;
     padding: 22px 30px;
 }
@@ -674,7 +722,7 @@ header h1 {
 
 header p {
     margin: 8px 0 0;
-    color: #d5e5dc;
+    color: #e6f0fc;
 }
 
 .container {
@@ -703,13 +751,13 @@ header p {
 }
 
 .btn-green {
-    background: #235b46;
+    background: #2a62b8;
     color: white;
 }
 
 .btn-light {
-    background: #e3ece6;
-    color: #204633;
+    background: #e3ebf6;
+    color: #1f4e96;
 }
 
 .btn-red {
@@ -718,8 +766,8 @@ header p {
 }
 
 .btn-gold {
-    background: #d6b66d;
-    color: #28352d;
+    background: #9cc9f5;
+    color: #1f2d3d;
 }
 
 .card {
@@ -738,7 +786,7 @@ textarea,
 input[type="text"] {
     width: 100%;
     padding: 12px;
-    border: 1px solid #d5ddd8;
+    border: 1px solid #cfd9e6;
     border-radius: 7px;
     font-family: inherit;
     font-size: 14px;
@@ -756,8 +804,8 @@ textarea {
 }
 
 .stats {
-    background: #e5eee8;
-    color: #214532;
+    background: #e6eef9;
+    color: #1f4e96;
     border-radius: 10px;
     padding: 18px;
     margin-bottom: 20px;
@@ -808,7 +856,7 @@ td {
 }
 
 th {
-    background: #f5f8f6;
+    background: #f4f7fc;
     font-size: 13px;
 }
 
@@ -819,16 +867,16 @@ td {
 .link-text {
     max-width: 250px;
     overflow-wrap: anywhere;
-    color: #39704e;
+    color: #2a62b8;
 }
 
 .link-text a {
-    color: #1f6b49;
+    color: #2b6cb0;
     text-decoration: underline;
 }
 
 .link-text a:hover {
-    color: #0f4630;
+    color: #1f4e96;
 }
 
 .badge {
@@ -837,8 +885,8 @@ td {
     padding: 5px 12px;
     font-size: 12px;
     cursor: pointer;
-    background: #eceeed;
-    color: #6b746f;
+    background: #e8edf4;
+    color: #64748b;
 }
 
 .badge.is-sent {
@@ -883,19 +931,17 @@ td {
 
 <body>
 
-<header>
-    <h1>Guest Management</h1>
-    <p>Kelola daftar tamu dan link undangan personal</p>
-</header>
+<?php admin_nav($adminCtx, 'guests'); ?>
 
 <div class="container">
 
     <div class="top-bar">
-        <h2>Daftar Tamu Undangan</h2>
-
-        <a href="dashboard.php" class="btn btn-light">
-            ← Kembali ke Dashboard
-        </a>
+        <div>
+            <h2 style="margin:0">Daftar Tamu Undangan</h2>
+            <p class="form-note" style="margin:6px 0 0">
+                Kelola daftar tamu dan link undangan personal
+            </p>
+        </div>
     </div>
 
     <?php if ($success): ?>
@@ -1090,7 +1136,7 @@ Rizky dan pasangan"
 
                         <?php
                         $invitationLink =
-    $baseUrl . COUPLE_SLUG . '/' . $guest['slug'];
+    $baseUrl . $invitation['slug'] . '/' . $guest['slug'];
 
                         $whatsappMessage = str_replace(
     ['{nama_tamu}', '{link_undangan}'],

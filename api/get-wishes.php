@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/invitation.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -34,12 +35,31 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    $stmt = $pdo->query("
+    ensure_invitation_schema($pdo);
+
+    // Ucapan hanya milik undangan yang sedang dibuka.
+    $invitationSlug = strtolower(trim((string)($_GET['invitation'] ?? '')));
+
+    $invitation = $invitationSlug !== ''
+        ? invitation_by_slug($pdo, $invitationSlug)
+        : invitation_default($pdo);
+
+    if (!$invitation) {
+        jsonResponse(404, [
+            'success' => false,
+            'message' => 'Undangan tidak ditemukan.'
+        ]);
+    }
+
+    $stmt = $pdo->prepare("
         SELECT id, name, message, created_at
         FROM wishes
+        WHERE invitation_id = :invitation_id
         ORDER BY created_at DESC, id DESC
         LIMIT 200
     ");
+
+    $stmt->execute(['invitation_id' => $invitation['id']]);
 
     jsonResponse(200, [
         'success' => true,

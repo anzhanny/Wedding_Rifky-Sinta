@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/invitation.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -100,6 +101,29 @@ if (
     ]);
 }
 
+// Tentukan undangan pemilik data (dari slug yang dikirim halaman undangan).
+try {
+    ensure_invitation_schema($pdo);
+
+    $invitationSlug = isset($data['invitation']) && is_string($data['invitation'])
+        ? strtolower(trim($data['invitation']))
+        : '';
+
+    $invitation = $invitationSlug !== ''
+        ? invitation_by_slug($pdo, $invitationSlug)
+        : invitation_default($pdo);
+} catch (Throwable $e) {
+    error_log('Resolve invitation error: ' . $e->getMessage());
+    $invitation = null;
+}
+
+if (!$invitation) {
+    jsonResponse(404, [
+        'success' => false,
+        'message' => 'Undangan tidak ditemukan.'
+    ]);
+}
+
 try {
     $pdo->beginTransaction();
 
@@ -172,11 +196,12 @@ try {
 
     // Simpan RSVP.
     $stmt = $pdo->prepare("
-        INSERT INTO rsvps (name, attendance)
-        VALUES (:name, :attendance)
+        INSERT INTO rsvps (invitation_id, name, attendance)
+        VALUES (:invitation_id, :name, :attendance)
     ");
 
     $stmt->execute([
+        'invitation_id' => $invitation['id'],
         'name' => $name,
         'attendance' => $status
     ]);

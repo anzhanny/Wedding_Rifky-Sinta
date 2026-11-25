@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/guest_helpers.php';
+require_once __DIR__ . '/config/invitation.php';
 
 // Alamat dasar folder proyek (otomatis, jalan di Laragon maupun hosting).
 // Dipakai pada <base> agar CSS, JS, gambar, dan API tetap terbaca
@@ -14,94 +15,94 @@ $basePath = rtrim($basePath, '/') . '/';
 $guestName = 'Tamu Undangan';
 $guestError = false;
 $isPersonalGuest = false;
+$invitation = null;
 
+$invitationSlug = strtolower(trim((string)($_GET['u'] ?? '')));
 $shortCode = trim((string)($_GET['short'] ?? ''));
 $guestToken = trim((string)($_GET['guest'] ?? ''));
-$guestSlug = trim((string)($_GET['tamu'] ?? ''));
+$guestSlug = strtolower(trim((string)($_GET['tamu'] ?? '')));
 
 try {
 
-    if ($shortCode !== '') {
+    ensure_invitation_schema($pdo);
 
-        if (!preg_match('/\A[A-Za-z0-9]{6,12}\z/', $shortCode)) {
-            $guestError = true;
-        } else {
+    if ($shortCode !== '' || $guestToken !== '') {
 
-            $stmt = $pdo->prepare(
-                "SELECT guest_name
-                 FROM invitation_guests
-                 WHERE short_code = :code
-                 LIMIT 1"
-            );
+        // Link lama: /i/KODE atau ?guest=TOKEN
+        $guest = null;
 
-            $stmt->execute([
-                ':code' => $shortCode
-            ]);
-
-            $guest = $stmt->fetch();
-
-            if ($guest) {
-                $guestName = $guest['guest_name'];
-                $isPersonalGuest = true;
-            } else {
-                $guestError = true;
+        if ($shortCode !== '') {
+            if (preg_match('/\A[A-Za-z0-9]{6,12}\z/', $shortCode)) {
+                $stmt = $pdo->prepare(
+                    "SELECT guest_name, invitation_id
+                     FROM invitation_guests
+                     WHERE short_code = :code
+                     LIMIT 1"
+                );
+                $stmt->execute([':code' => $shortCode]);
+                $guest = $stmt->fetch();
             }
-        }
-
-    } elseif ($guestToken !== '') {
-
-        if (!preg_match('/\A[a-f0-9]{64}\z/i', $guestToken)) {
-            $guestError = true;
-        } else {
-
+        } elseif (preg_match('/\A[a-f0-9]{64}\z/i', $guestToken)) {
             $stmt = $pdo->prepare(
-                "SELECT guest_name
+                "SELECT guest_name, invitation_id
                  FROM invitation_guests
                  WHERE token = :token
                  LIMIT 1"
             );
-
-            $stmt->execute([
-                ':token' => $guestToken
-            ]);
-
+            $stmt->execute([':token' => $guestToken]);
             $guest = $stmt->fetch();
-
-            if ($guest) {
-                $guestName = $guest['guest_name'];
-                $isPersonalGuest = true;
-            } else {
-                $guestError = true;
-            }
         }
 
-    } elseif ($guestSlug !== '') {
-
-        // Link /rifky-sinta/nama-tamu
-        if (!preg_match('/\A[A-Za-z0-9-]{1,100}\z/', $guestSlug)) {
-            $guestError = true;
-        } else {
-            // Nama cadangan dari link, dipakai bila nama tidak ada di database.
-            $guestName = guest_name_from_slug($guestSlug);
+        if ($guest) {
+            $guestName = $guest['guest_name'];
             $isPersonalGuest = true;
+            $invitation = invitation_by_id($pdo, (int)$guest['invitation_id']);
+        }
 
-            try {
-                $stmt = $pdo->prepare(
-                    "SELECT guest_name
-                     FROM invitation_guests
-                     WHERE slug = :slug
-                     LIMIT 1"
-                );
+        if (!$invitation) {
+            $guestError = true;
+        }
 
-                $stmt->execute([':slug' => strtolower($guestSlug)]);
-                $guest = $stmt->fetch();
+    } else {
 
-                if ($guest) {
-                    $guestName = $guest['guest_name'];
+        // Link /slug-undangan atau /slug-undangan/nama-tamu.
+        // Tanpa slug: pakai undangan bawaan.
+        $invitation = $invitationSlug !== ''
+            ? invitation_by_slug($pdo, $invitationSlug)
+            : invitation_default($pdo);
+
+        if (!$invitation) {
+            $guestError = true;
+        } elseif ($guestSlug !== '') {
+
+            if (!preg_match('/\A[a-z0-9-]{1,100}\z/', $guestSlug)) {
+                $guestError = true;
+            } else {
+                // Nama cadangan dari link, dipakai bila nama tidak ada di database.
+                $guestName = guest_name_from_slug($guestSlug);
+                $isPersonalGuest = true;
+
+                try {
+                    $stmt = $pdo->prepare(
+                        "SELECT guest_name
+                         FROM invitation_guests
+                         WHERE invitation_id = :inv AND slug = :slug
+                         LIMIT 1"
+                    );
+
+                    $stmt->execute([
+                        ':inv' => $invitation['id'],
+                        ':slug' => $guestSlug
+                    ]);
+
+                    $guest = $stmt->fetch();
+
+                    if ($guest) {
+                        $guestName = $guest['guest_name'];
+                    }
+                } catch (PDOException $e) {
+                    error_log('Guest slug lookup: ' . $e->getMessage());
                 }
-            } catch (PDOException $e) {
-                // Kolom slug belum ada: tetap tampilkan nama dari link.
-                error_log('Guest slug lookup: ' . $e->getMessage());
             }
         }
     }
@@ -113,6 +114,9 @@ try {
     http_response_code(500);
     exit('Terjadi kesalahan saat memuat undangan.');
 }
+
+// Slug undangan untuk JavaScript (RSVP, ucapan).
+$invitationSlugOut = $invitation['slug'] ?? '';
 
 $guestName = htmlspecialchars(
     $guestName,
@@ -215,6 +219,7 @@ if ($guestError) {
 
     <!-- Base URL agar aset tetap terbaca melalui URL pendek -->
     <base href="<?= htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8') ?>" />
+    <meta name="invitation" content="<?= htmlspecialchars($invitationSlugOut, ENT_QUOTES, 'UTF-8') ?>" />
 
     <meta
       name="viewport"

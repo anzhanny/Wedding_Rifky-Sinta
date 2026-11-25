@@ -12,13 +12,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/xlsx.php';
+require_once __DIR__ . '/layout.php';
+
+$ctx = admin_context($pdo);  // pastikan akun masih ada
+$invitation = $ctx['invitation'];
 
 try {
-    $stmt = $pdo->query(
+    // Hanya ucapan milik undangan yang sedang dikelola.
+    $stmt = $pdo->prepare(
         'SELECT name, message, created_at
          FROM wishes
+         WHERE invitation_id = :inv
          ORDER BY created_at DESC, id DESC'
     );
+    $stmt->execute([':inv' => $invitation['id']]);
 
     $rows = (static function () use ($stmt) {
         $i = 1;
@@ -29,7 +36,7 @@ try {
     })();
 
     send_xlsx(
-        'data-ucapan-undangan-' . date('Ymd-His') . '.xlsx',
+        'data-ucapan-' . $invitation['slug'] . '-' . date('Ymd-His') . '.xlsx',
         'Ucapan',
         ['No', 'Nama', 'Ucapan', 'Waktu'],
         $rows,

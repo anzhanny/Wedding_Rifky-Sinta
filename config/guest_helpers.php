@@ -4,12 +4,9 @@ declare(strict_types=1);
 /**
  * Fungsi bantu untuk link undangan berbasis nama tamu.
  *
- * Format link:  {domain}/rifky-sinta/nama-tamu
+ * Format link:  {domain}/{slug-undangan}/nama-tamu
  * Contoh:       https://contoh.com/rifky-sinta/bapak-andi
  */
-
-// Bagian link yang menjadi "nama pengantin". Harus sama dengan aturan di .htaccess.
-const COUPLE_SLUG = 'rifky-sinta';
 
 /**
  * Mengubah nama tamu menjadi slug aman untuk URL.
@@ -46,16 +43,17 @@ function guest_name_from_slug(string $slug): string
  * Membuat slug unik di tabel invitation_guests.
  * Nama kembar menjadi "bapak-andi", "bapak-andi-2", "bapak-andi-3", ...
  */
-function guest_unique_slug(PDO $pdo, string $name): string
+function guest_unique_slug(PDO $pdo, string $name, int $invitationId): string
 {
     $base = guest_slugify($name);
     $candidate = $base;
     $stmt = $pdo->prepare(
-        'SELECT 1 FROM invitation_guests WHERE slug = :slug LIMIT 1'
+        'SELECT 1 FROM invitation_guests
+         WHERE invitation_id = :inv AND slug = :slug LIMIT 1'
     );
 
     for ($n = 2; $n < 1000; $n++) {
-        $stmt->execute([':slug' => $candidate]);
+        $stmt->execute([':inv' => $invitationId, ':slug' => $candidate]);
 
         if (!$stmt->fetchColumn()) {
             return $candidate;

@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Buat Admin</title>
 </head>
-<body style="font-family:Arial;max-width:420px;margin:50px auto;padding:20px;color:#1e3f32">
+<body style="font-family:Arial;max-width:420px;margin:50px auto;padding:20px;color:#1f4e96">
 
 <h2>Buat Akun Admin</h2>
 
@@ -114,5 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 <?php endif; ?>
 
+<?php require __DIR__ . '/password-toggle.php'; ?>
 </body>
 </html>

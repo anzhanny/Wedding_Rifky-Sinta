@@ -11,6 +11,10 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("guest-name")?.dataset.guestName ||
         "";
 
+    // Slug undangan (dari <meta name="invitation">), dikirim bersama RSVP dan ucapan.
+    const invitationSlug =
+        document.querySelector('meta[name="invitation"]')?.content || "";
+
     const guestName = document.getElementById("guest-name");
     const rsvpName = document.getElementById("rsvp-name");
     const wishName = document.getElementById("wish-name");
@@ -259,6 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const result = await sendToAPI("api/submit-rsvp.php", {
+        invitation: invitationSlug,
         name: name,
         status: status
       });
@@ -363,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function loadWishes() {
         try {
-            const response = await fetch("api/get-wishes.php", {
+            const response = await fetch("api/get-wishes.php?invitation=" + encodeURIComponent(invitationSlug), {
                 method: "GET",
                 headers: {
                     "Accept": "application/json"
@@ -468,6 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const result = await sendToAPI("api/submit-wish.php", {
+        invitation: invitationSlug,
         name: name,
         message: message
       });

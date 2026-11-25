@@ -226,9 +226,9 @@ body {
     min-height: 100vh;
     display: grid;
     place-items: center;
-    background: #edf3ef;
+    background: #eaf1fa;
     font-family: Arial, sans-serif;
-    color: #1e3f32;
+    color: #1f4e96;
 }
 
 .card {
@@ -245,7 +245,7 @@ h1 {
 }
 
 p {
-    color: #60736a;
+    color: #5f6f86;
     font-size: 14px;
 }
 
@@ -258,7 +258,7 @@ label {
 input {
     width: 100%;
     padding: 12px;
-    border: 1px solid #d3e0d9;
+    border: 1px solid #d5e0ee;
     border-radius: 9px;
 }
 
@@ -268,7 +268,7 @@ button {
     padding: 13px;
     border: 0;
     border-radius: 25px;
-    background: #1e3f32;
+    background: #1f4e96;
     color: white;
     font-weight: bold;
     cursor: pointer;
@@ -321,5 +321,6 @@ button {
         <button type="submit">Login</button>
     </form>
 </main>
+<?php require __DIR__ . '/password-toggle.php'; ?>
 </body>
 </html>

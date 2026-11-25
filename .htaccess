@@ -1,10 +1,19 @@
 RewriteEngine On
 
-# Link undangan per tamu:  /rifky-sinta/nama-tamu  ->  index.php?tamu=nama-tamu
-# Tanpa nama tamu:         /rifky-sinta            ->  index.php
-# Tanpa RewriteBase: jalan di folder mana pun (Laragon maupun hosting).
-RewriteRule ^rifky-sinta/?$ index.php [L,QSA]
-RewriteRule ^rifky-sinta/([A-Za-z0-9-]{1,100})/?$ index.php?tamu=$1 [L,QSA]
+# Jangan tampilkan daftar isi folder (mis. /admin/, /assets/).
+Options -Indexes
 
 # Link lama (kode pendek):  /i/KODE  ->  index.php?short=KODE
 RewriteRule ^i/([A-Za-z0-9]{6,12})/?$ index.php?short=$1 [L,QSA]
+
+# Link undangan per tamu:  /slug-undangan/nama-tamu  ->  index.php?u=slug-undangan&tamu=nama-tamu
+# Link undangan umum:      /slug-undangan            ->  index.php?u=slug-undangan
+# Hanya dipakai bila alamat BUKAN file/folder asli (admin/, assets/, css/, dst. tetap normal).
+# Tanpa RewriteBase: jalan di folder mana pun (Laragon maupun hosting).
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)/([A-Za-z0-9-]{1,100})/?$ index.php?u=$1&tamu=$2 [L,QSA]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)/?$ index.php?u=$1 [L,QSA]

@@ -9,34 +9,62 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit('Metode permintaan tidak diizinkan.');
 }
 
-if (empty($_SESSION['logout_csrf'])) {
-    $_SESSION['logout_csrf'] = bin2hex(random_bytes(32));
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/layout.php';
+
+$ctx = admin_context($pdo);
+
+// Semua data di halaman ini hanya milik undangan yang sedang dikelola.
+$invitationId = (int)$ctx['invitation']['id'];
+
+// Ringkasan daftar tamu (tabel bisa belum ada di database lama).
+$guestSummary = ['total' => 0, 'terkirim' => 0];
+
+try {
+    $guestStmt = $pdo->prepare("
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(invitation_sent = 1), 0) AS terkirim
+        FROM invitation_guests
+        WHERE invitation_id = :inv
+    ");
+    $guestStmt->execute([':inv' => $invitationId]);
+    $guestSummary = $guestStmt->fetch() ?: $guestSummary;
+} catch (Throwable $e) {
+    error_log('Dashboard guest summary: ' . $e->getMessage());
 }
 
-require_once __DIR__ . '/../config/database.php';
-
 // Rekapitulasi RSVP
-$summary = $pdo->query("
+$summaryStmt = $pdo->prepare("
     SELECT
         COUNT(*) AS total,
         COALESCE(SUM(attendance = 'Hadir'), 0) AS hadir,
         COALESCE(SUM(attendance = 'Tidak Hadir'), 0) AS tidak_hadir
     FROM rsvps
-")->fetch();
+    WHERE invitation_id = :inv
+");
+$summaryStmt->execute([':inv' => $invitationId]);
+$summary = $summaryStmt->fetch();
 
 // Data RSVP
-$rsvps = $pdo->query("
+$rsvpStmt = $pdo->prepare("
     SELECT id, name, attendance, created_at
     FROM rsvps
+    WHERE invitation_id = :inv
     ORDER BY created_at DESC, id DESC
-")->fetchAll();
+");
+$rsvpStmt->execute([':inv' => $invitationId]);
+$rsvps = $rsvpStmt->fetchAll();
 
 // Data ucapan
-$wishes = $pdo->query("
+$wishStmt = $pdo->prepare("
     SELECT id, name, message, created_at
     FROM wishes
+    WHERE invitation_id = :inv
     ORDER BY created_at DESC, id DESC
-")->fetchAll();
+");
+$wishStmt->execute([':inv' => $invitationId]);
+$wishes = $wishStmt->fetchAll();
 
 function h($v): string {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
@@ -58,13 +86,13 @@ function h($v): string {
 
 body {
     margin: 0;
-    background: #f3f7f4;
-    color: #1e3f32;
+    background: #f3f6fb;
+    color: #1f4e96;
     font-family: Arial, sans-serif;
 }
 
 header {
-    background: #1e3f32;
+    background: #1f4e96;
     color: white;
     padding: 20px max(20px, calc((100% - 1100px)/2));
     display: flex;
@@ -101,7 +129,7 @@ main {
 
 .card, section {
     background: white;
-    border: 1px solid #e0e9e3;
+    border: 1px solid #dde6f2;
     border-radius: 14px;
     padding: 18px;
     margin-bottom: 20px;
@@ -114,7 +142,7 @@ main {
 }
 
 .muted {
-    color: #6b7d73;
+    color: #64748b;
     font-size: 13px;
 }
 
@@ -132,12 +160,12 @@ table {
 th, td {
     text-align: left;
     padding: 11px 9px;
-    border-bottom: 1px solid #edf1ee;
+    border-bottom: 1px solid #e9eef6;
     vertical-align: top;
 }
 
 th {
-    background: #f7faf8;
+    background: #f4f7fc;
 }
 
 .table-wrap {
@@ -146,7 +174,7 @@ th {
 
 .btn {
     display: inline-block;
-    background: #1e3f32;
+    background: #1f4e96;
     color: white;
     text-decoration: none;
     padding: 10px 14px;
@@ -181,29 +209,14 @@ th {
 
 <body>
 
-<header>
-    <div>
-        <strong>Dashboard Undangan</strong>
-        <div class="muted" style="color:#d5e5dc">
-            Login: <?= h($_SESSION['admin_username'] ?? 'Admin') ?>
-        </div>
-    </div>
-
-    <form method="POST" action="logout.php" style="margin:0;">
-    <input
-        type="hidden"
-        name="csrf"
-        value="<?= h($_SESSION['logout_csrf']) ?>"
-    >
-    <button type="submit" class="logout">
-        Keluar
-    </button>
-</form>
-</header>
+<?php admin_nav($ctx, 'dashboard'); ?>
 
 <main>
 
 <h1>Rekapitulasi Data</h1>
+<p class="muted" style="margin:-6px 0 18px">
+    Undangan: <strong><?= h($ctx['invitation']['couple_name']) ?></strong>
+</p>
 
 <div class="cards">
 
@@ -220,6 +233,25 @@ th {
     <div class="card">
         <div class="muted">Tidak Hadir</div>
         <div class="num"><?= (int)$summary['tidak_hadir'] ?></div>
+    </div>
+
+    <div class="card">
+        <div class="muted">Tamu Terdaftar</div>
+        <div class="num"><?= (int)$guestSummary['total'] ?></div>
+        <a class="muted" href="guests.php">Kelola daftar tamu →</a>
+    </div>
+
+    <div class="card">
+        <div class="muted">Undangan Terkirim</div>
+        <div class="num">
+            <?= (int)$guestSummary['terkirim'] ?>
+            <span class="muted">dari <?= (int)$guestSummary['total'] ?></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="muted">Ucapan Masuk</div>
+        <div class="num"><?= count($wishes) ?></div>
     </div>
 
 </div>
