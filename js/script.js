@@ -126,9 +126,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 4. COUNTDOWN TIMER
     // ==========================================
 
-    // 3 Desember 2026 (Akad), pukul 09.00 WIB
+    // Hitung mundur ke 6 Desember 2026 (Resepsi), pukul 11.00 WIB
     const targetDate = new Date(
-        "2026-12-03T09:00:00+07:00"
+        "2026-12-06T11:00:00+07:00"
     ).getTime();
 
     const countdown = document.getElementById("countdown");

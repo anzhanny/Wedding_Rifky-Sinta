@@ -539,7 +539,7 @@ if ($guestError) {
           />
         </div>
 
-        <!-- Countdown Timer -->
+        <!-- Hitung mundur ke 6 Desember 2026 -->
         <div
           id="countdown"
           class="grid grid-cols-4 gap-2.5 max-w-md mx-auto mb-8"
