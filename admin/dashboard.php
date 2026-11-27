@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_admin();
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'POST'], true)) {
     http_response_code(405);
-    header('Allow: GET');
+    header('Allow: GET, POST');
     exit('Metode permintaan tidak diizinkan.');
 }
 
@@ -16,6 +16,81 @@ $ctx = admin_context($pdo);
 
 // Semua data di halaman ini hanya milik undangan yang sedang dikelola.
 $invitationId = (int)$ctx['invitation']['id'];
+
+// Hanya admin yang boleh menghapus riwayat RSVP dan ucapan.
+$isAdmin = $ctx['role'] === 'admin';
+
+if (empty($_SESSION['dashboard_csrf'])) {
+    $_SESSION['dashboard_csrf'] = bin2hex(random_bytes(32));
+}
+
+$dashCsrf = $_SESSION['dashboard_csrf'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    if (!$isAdmin) {
+        http_response_code(403);
+        exit('Hanya admin yang dapat menghapus data.');
+    }
+
+    if (!hash_equals($dashCsrf, (string)($_POST['csrf_token'] ?? ''))) {
+        http_response_code(403);
+        exit('Permintaan tidak valid. Silakan refresh halaman.');
+    }
+
+    $action = (string)($_POST['action'] ?? '');
+    $id = (int)($_POST['id'] ?? 0);
+
+    // Daftar putih: aksi => [tabel, label]. Nama tabel tidak pernah berasal dari input.
+    $targets = [
+        'delete_rsvp' => ['rsvps', 'konfirmasi kehadiran', false],
+        'clear_rsvp' => ['rsvps', 'konfirmasi kehadiran', true],
+        'delete_wish' => ['wishes', 'ucapan', false],
+        'clear_wishes' => ['wishes', 'ucapan', true],
+    ];
+
+    if (!isset($targets[$action])) {
+        $_SESSION['dashboard_flash'] = ['error', 'Aksi tidak dikenal.'];
+        header('Location: dashboard.php');
+        exit;
+    }
+
+    [$table, $label, $all] = $targets[$action];
+
+    try {
+        if ($all) {
+            // Kosongkan: hanya milik undangan yang sedang dikelola.
+            $stmt = $pdo->prepare("DELETE FROM {$table} WHERE invitation_id = :inv");
+            $stmt->execute([':inv' => $invitationId]);
+        } else {
+            if ($id <= 0) {
+                $_SESSION['dashboard_flash'] = ['error', 'Data tidak valid.'];
+                header('Location: dashboard.php');
+                exit;
+            }
+
+            $stmt = $pdo->prepare("DELETE FROM {$table} WHERE id = :id AND invitation_id = :inv");
+            $stmt->execute([':id' => $id, ':inv' => $invitationId]);
+        }
+
+        $count = $stmt->rowCount();
+
+        $_SESSION['dashboard_flash'] = $count > 0
+            ? ['success', $all
+                ? $count . ' data ' . $label . ' dihapus.'
+                : 'Data ' . $label . ' dihapus.']
+            : ['error', 'Data tidak ditemukan atau sudah terhapus.'];
+    } catch (Throwable $e) {
+        error_log('Dashboard delete error: ' . $e->getMessage());
+        $_SESSION['dashboard_flash'] = ['error', 'Gagal menghapus data.'];
+    }
+
+    header('Location: dashboard.php');
+    exit;
+}
+
+$flash = $_SESSION['dashboard_flash'] ?? null;
+unset($_SESSION['dashboard_flash']);
 
 // Ringkasan daftar tamu (tabel bisa belum ada di database lama).
 $guestSummary = ['total' => 0, 'terkirim' => 0];
@@ -103,6 +178,63 @@ header {
 
 a {
     color: inherit;
+}
+
+.alert {
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    font-size: 14px;
+}
+
+.alert-success {
+    background: #dff2e5;
+    color: #24613a;
+}
+
+.alert-error {
+    background: #f8e0e0;
+    color: #912f2f;
+}
+
+.btn-del {
+    border: 0;
+    background: #d9534f;
+    color: #fff;
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.btn-del:hover {
+    background: #c0403c;
+}
+
+.btn-clear {
+    border: 1px solid #d9534f;
+    background: transparent;
+    color: #b33;
+    border-radius: 20px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    margin: 0 6px 12px 0;
+}
+
+.btn-clear:hover {
+    background: #fdeeee;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.toolbar form {
+    margin: 0;
 }
 
 .logout {
@@ -213,6 +345,12 @@ th {
 
 <main>
 
+<?php if ($flash): ?>
+    <div class="alert alert-<?= $flash[0] === 'success' ? 'success' : 'error' ?>">
+        <?= h($flash[1]) ?>
+    </div>
+<?php endif; ?>
+
 <h1>Rekapitulasi Data</h1>
 <p class="muted" style="margin:-6px 0 18px">
     Undangan: <strong><?= h($ctx['invitation']['couple_name']) ?></strong>
@@ -260,9 +398,20 @@ th {
 
     <h2>Data Konfirmasi Kehadiran</h2>
 
-    <a class="btn" href="export-rsvp.php">
-        ⬇ Unduh Excel (.xlsx)
-    </a>
+    <div class="toolbar">
+        <a class="btn" href="export-rsvp.php">
+            ⬇ Unduh Excel (.xlsx)
+        </a>
+
+        <?php if ($isAdmin && $rsvps): ?>
+            <form method="POST"
+                  onsubmit="return confirm('Hapus SEMUA konfirmasi kehadiran undangan ini? Tindakan ini tidak bisa dibatalkan.')">
+                <input type="hidden" name="csrf_token" value="<?= h($dashCsrf) ?>">
+                <input type="hidden" name="action" value="clear_rsvp">
+                <button type="submit" class="btn-clear">Kosongkan semua</button>
+            </form>
+        <?php endif; ?>
+    </div>
 
     <div class="table-wrap">
         <table>
@@ -273,6 +422,7 @@ th {
                     <th>Nama</th>
                     <th>Status</th>
                     <th>Waktu Konfirmasi</th>
+                    <?php if ($isAdmin): ?><th>Aksi</th><?php endif; ?>
                 </tr>
             </thead>
 
@@ -281,7 +431,7 @@ th {
             <?php if (!$rsvps): ?>
 
                 <tr>
-                    <td colspan="4">Belum ada data RSVP.</td>
+                    <td colspan="<?= $isAdmin ? 5 : 4 ?>">Belum ada data RSVP.</td>
                 </tr>
 
             <?php else: ?>
@@ -297,6 +447,18 @@ th {
                         </td>
 
                         <td><?= h($r['created_at']) ?></td>
+
+                        <?php if ($isAdmin): ?>
+                            <td>
+                                <form method="POST" style="margin:0"
+                                      onsubmit="return confirm('Hapus konfirmasi dari &quot;<?= h(addslashes($r['name'])) ?>&quot;?')">
+                                    <input type="hidden" name="csrf_token" value="<?= h($dashCsrf) ?>">
+                                    <input type="hidden" name="action" value="delete_rsvp">
+                                    <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                                    <button type="submit" class="btn-del">Hapus</button>
+                                </form>
+                            </td>
+                        <?php endif; ?>
                     </tr>
 
                 <?php endforeach; ?>
@@ -313,9 +475,20 @@ th {
 
     <h2>Ucapan dan Doa Tamu</h2>
 
-    <a class="btn" href="export-wishes.php">
-        ⬇ Unduh Excel (.xlsx)
-    </a>
+    <div class="toolbar">
+        <a class="btn" href="export-wishes.php">
+            ⬇ Unduh Excel (.xlsx)
+        </a>
+
+        <?php if ($isAdmin && $wishes): ?>
+            <form method="POST"
+                  onsubmit="return confirm('Hapus SEMUA ucapan undangan ini? Tindakan ini tidak bisa dibatalkan.')">
+                <input type="hidden" name="csrf_token" value="<?= h($dashCsrf) ?>">
+                <input type="hidden" name="action" value="clear_wishes">
+                <button type="submit" class="btn-clear">Kosongkan semua</button>
+            </form>
+        <?php endif; ?>
+    </div>
 
     <div class="table-wrap">
         <table>
@@ -326,6 +499,7 @@ th {
                     <th>Nama</th>
                     <th>Ucapan</th>
                     <th>Waktu</th>
+                    <?php if ($isAdmin): ?><th>Aksi</th><?php endif; ?>
                 </tr>
             </thead>
 
@@ -334,7 +508,7 @@ th {
             <?php if (!$wishes): ?>
 
                 <tr>
-                    <td colspan="4">Belum ada ucapan.</td>
+                    <td colspan="<?= $isAdmin ? 5 : 4 ?>">Belum ada ucapan.</td>
                 </tr>
 
             <?php else: ?>
@@ -346,6 +520,18 @@ th {
                         <td><?= h($w['name']) ?></td>
                         <td><?= nl2br(h($w['message'])) ?></td>
                         <td><?= h($w['created_at']) ?></td>
+
+                        <?php if ($isAdmin): ?>
+                            <td>
+                                <form method="POST" style="margin:0"
+                                      onsubmit="return confirm('Hapus ucapan dari &quot;<?= h(addslashes($w['name'])) ?>&quot;?')">
+                                    <input type="hidden" name="csrf_token" value="<?= h($dashCsrf) ?>">
+                                    <input type="hidden" name="action" value="delete_wish">
+                                    <input type="hidden" name="id" value="<?= (int)$w['id'] ?>">
+                                    <button type="submit" class="btn-del">Hapus</button>
+                                </form>
+                            </td>
+                        <?php endif; ?>
                     </tr>
 
                 <?php endforeach; ?>

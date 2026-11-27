@@ -1061,7 +1061,7 @@ if ($guestError) {
       <div class="text-center scroll-animate fade-up">
         <p class="text-xs text-[#556860]">
           Created by
-          <span class="font-semibold text-[#1E3F32]">Bleuzey.Project</span>
+          <span class="font-semibold text-[#8BBB92]">Bleuzey Project</span>
         </p>
       </div>
     </main>
