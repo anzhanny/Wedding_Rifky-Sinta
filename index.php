@@ -437,6 +437,77 @@ if ($guestError) {
         </div>
       </section>
 
+      <!-- CERITA KAMI (timeline) -->
+      <section class="elegant-card p-7 sm:p-10 scroll-animate fade-up">
+        <div class="text-center mb-9">
+          <p
+            class="text-xs font-semibold tracking-[0.25em] uppercase text-[#4A6B5D] mb-2"
+          >
+            OUR STORY
+          </p>
+          <h2
+            class="font-serif-elegant text-3xl sm:text-4xl font-semibold text-[#1E3F32]"
+          >
+            Cerita Kami
+          </h2>
+        </div>
+
+        <ol class="story-timeline">
+          <li class="story-item scroll-animate fade-up">
+            <span class="story-dot" aria-hidden="true"></span>
+            <p class="story-date">November 2025</p>
+            <h3 class="story-title">Pertemuan Pertama</h3>
+            <p class="story-text">
+              Semua bermula di bulan November 2025. Takdir mempertemukan kami di
+              waktu yang tak terduga. Sebuah pertemuan sederhana yang ternyata
+              menjadi awal dari cerita yang besar.
+            </p>
+          </li>
+
+          <li
+            class="story-item scroll-animate fade-up"
+            style="transition-delay: 0.1s"
+          >
+            <span class="story-dot" aria-hidden="true"></span>
+            <p class="story-date">Januari 2026</p>
+            <h3 class="story-title">Mulai Dekat</h3>
+            <p class="story-text">
+              Januari 2026 menjadi titik dimana cerita kami benar-benar dimulai.
+              Dari sekadar saling sapa, kami mulai berbagi cerita, tawa, dan
+              mimpi. Kedekatan itu tumbuh begitu natural, tanpa paksaan.
+            </p>
+          </li>
+
+          <li
+            class="story-item scroll-animate fade-up"
+            style="transition-delay: 0.15s"
+          >
+            <span class="story-dot" aria-hidden="true"></span>
+            <h3 class="story-title">Perjalanan Cinta</h3>
+            <p class="story-text">
+              Bulan demi bulan kami lewati bersama. Belajar mengenal, mengerti,
+              dan saling menguatkan. Bukan tentang seberapa lama, tapi tentang
+              seberapa yakin kami ingin melangkah bersama.
+            </p>
+          </li>
+
+          <li
+            class="story-item story-item--now scroll-animate fade-up"
+            style="transition-delay: 0.2s"
+          >
+            <span class="story-dot" aria-hidden="true"></span>
+            <p class="story-date">Hari Ini</p>
+            <h3 class="story-title">Menuju Selamanya</h3>
+            <p class="story-text">
+              Dan kini, dengan restu keluarga dan keyakinan hati, kami
+              memutuskan untuk mengikat janji suci dalam pernikahan. Karena kami
+              percaya, cinta yang tepat akan selalu menemukan jalannya untuk
+              pulang.
+            </p>
+          </li>
+        </ol>
+      </section>
+
       <!-- TANGGAL, WAKTU & COUNTDOWN -->
       <section
         class="elegant-card p-7 sm:p-10 text-center scroll-animate fade-up"

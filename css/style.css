@@ -723,3 +723,112 @@ button[onclick^="copyRekening"],
         transform: none;
     }
 }
+/* ================= 14. CERITA KAMI (TIMELINE) ================= */
+
+.story-timeline {
+    position: relative;
+    list-style: none;
+    margin: 0 auto;
+    padding: 0 0 0 2.4rem;
+    max-width: 30rem;
+    text-align: left;
+}
+
+/* Garis vertikal emas */
+.story-timeline::before {
+    content: "";
+    position: absolute;
+    left: calc(0.7rem - 1px);
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 2px;
+    background: linear-gradient(
+        to bottom,
+        rgba(197, 168, 120, 0),
+        rgba(197, 168, 120, 0.85) 10%,
+        rgba(197, 168, 120, 0.85) 90%,
+        rgba(197, 168, 120, 0)
+    );
+}
+
+.story-item {
+    position: relative;
+    padding-bottom: 2.1rem;
+}
+
+.story-item:last-child {
+    padding-bottom: 0;
+}
+
+/* Titik di garis */
+.story-dot {
+    position: absolute;
+    left: -2.4rem;
+    top: 0.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 2px solid var(--gold-accent);
+    box-shadow: 0 0 0 5px rgba(197, 168, 120, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.story-dot::after {
+    content: "";
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--gold-accent);
+}
+
+/* Titik terakhir ("Hari Ini") dipenuhi emas agar menonjol */
+.story-item--now .story-dot {
+    background: var(--gold-accent);
+    box-shadow: 0 0 0 6px rgba(197, 168, 120, 0.25);
+}
+
+.story-item--now .story-dot::after {
+    background: #FFFFFF;
+}
+
+.story-date {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold-accent);
+}
+
+.story-title {
+    margin: 0.15rem 0 0.45rem;
+    font-family: var(--font-serif);
+    font-size: 1.55rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #1E3F32; /* hijau botol tua (variabel --bottle-green di tema ini bernilai mint) */
+}
+
+.story-text {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.8;
+    color: var(--text-muted);
+}
+
+@media (max-width: 380px) {
+    .story-timeline {
+        padding-left: 2.1rem;
+    }
+
+    .story-dot {
+        left: -2.1rem;
+    }
+
+    .story-title {
+        font-size: 1.35rem;
+    }
+}
